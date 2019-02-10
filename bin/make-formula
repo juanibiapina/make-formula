@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+set -e
+
+user="$1"
+repo="$2"
+
+usage() {
+  echo "make-formula <user> <repo>"
+  exit 1
+}
+
+if [ -z "$user" ]; then
+  usage
+fi
+
+if [ -z "$repo" ]; then
+  usage
+fi
+
+VERSION=`curl https://api.github.com/repos/${user}/${repo}/releases/latest | jq -r .tag_name`
+BINARY_FILE_NAME="${repo}-${VERSION}-x86_64-apple-darwin.tar.gz"
+RELEASE_URL="https://github.com/${user}/${repo}/releases/download/${VERSION}/${BINARY_FILE_NAME}"
+
+curl -L -O "${RELEASE_URL}"
+
+SHASUM=`shasum -a 256 ${BINARY_FILE_NAME} | cut -f 1 -d " "`
+DESCRIPTION=`curl https://api.github.com/repos/${user}/${repo} | jq -r .description`
+
+echo "class ${repo^} < Formula
+  desc '${DESCRIPTION}'
+  homepage 'https://github.com/${user}/${repo}'
+  url '${RELEASE_URL}'
+  version '${VERSION}'
+  sha256 '${SHASUM}'
+
+  def install
+    bin.install '${repo}'
+  end
+end" > ${repo}.rb
+
+rm ${BINARY_FILE_NAME}
